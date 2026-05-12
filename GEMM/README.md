@@ -6,6 +6,7 @@ Implementação de multiplicação de matrizes quadradas utilizando GPU via CUDA
 
 ## Requisitos
 
+- Compute Capability ≥ 7.0 (Volta ou superior)
 - NVIDIA GPU com suporte a CUDA
 - CUDA Toolkit instalado (recomendado: 11.x ou superior)
 - Compilador `nvcc`
