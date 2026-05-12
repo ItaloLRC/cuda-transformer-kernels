@@ -3,6 +3,7 @@
 Implementações em CUDA C++ desenvolvidas para os desafios mensais de GPU promovidos pela [Neospace AI](https://www.instagram.com/neospace_ai), avaliados em GPU **NVIDIA GB200**. Todos os kernels rodam inteiramente na GPU (exceto I/O) e usam precisão **FP32**.
 
 Os desafios foram feitos de forma **individual**, e serviram como ponto de entrada para entender como primitivas de Deep Learning funcionam de baixo nível, antes de frameworks como PyTorch.
+Realizados em uma GPU com Compute Capability ≥ 7.0 (Volta ou superior)
 
 ---
 
