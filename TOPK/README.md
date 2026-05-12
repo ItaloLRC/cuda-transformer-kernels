@@ -16,6 +16,7 @@ Exemplos:
 
 ## Requisitos
 
+- Compute Capability ≥ 7.0 (Volta ou superior)
 - NVIDIA GPU com suporte a CUDA
 - CUDA Toolkit 11.x ou superior
 - Compilador `nvcc`
