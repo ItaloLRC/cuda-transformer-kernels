@@ -29,7 +29,7 @@ Attention(Q, K, V) = softmax(Q * K^T / sqrt(dk)) * V
 ### [Desafio D — Queries de Softmax](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/SOFTMAX%20QUERIES)
 `qsoftmax.cu` · 50 pts · TL: 300s
 
-Softmax por faixas de colunas para volume arbitrário de queries. A chave é pré-computar o prefix sum de `exp(a[i][j])` por linha uma única vez — respondendo cada query em O(1) em vez de varrer a linha inteira. O prefix sum distribuído entre blocos usa o algoritmo **Decoupled Look-back** (Merrill & Garland, 2016), com sincronização lock-free via descriptors e `__threadfence()`. As queries são processadas em batches de 25k com 3 CUDA streams para sobrepor I/O e computação.
+Softmax por faixas de colunas para volume arbitrário de queries. A chave é pré-computar o prefix sum de `exp(a[i][j])` por linha uma única vez — respondendo cada query em O(1) em vez de varrer a linha inteira. O prefix sum distribuído entre blocos usa o algoritmo **Decoupled Look-back** (Merrill & Garland, 2016), com sincronização lock-free via descriptors e `__threadfence()`, além de ordenação das queries a partir da linha, maximizando o cache hit durante a execução do kernel. As queries são processadas em batches de 25k com 3 CUDA streams para sobrepor I/O e computação (consumer/producer).
 
 ---
 
