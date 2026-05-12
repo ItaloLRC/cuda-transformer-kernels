@@ -133,9 +133,3 @@ A impressão usa um buffer de 16 MB com `fwrite` em vez de `printf` por elemento
 | `initMatrix`  | Inicializa matriz com valores aleatórios em [0,1] |
 
 ---
-
-## Limitações conhecidas
-
-- Apenas matrizes com **M = N** são suportadas corretamente pelo kernel (matrizes quadradas).
-- `VALX` e `VALY` são fixos em tempo de compilação; ajustá-los pode ser necessário para GPUs com menor memória compartilhada.
-- Não há verificação de erros CUDA nas chamadas de alocação e cópia (recomendado adicionar `CUDA_CHECK` para uso em produção; a macro já está definida no código).
