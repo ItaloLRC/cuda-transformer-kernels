@@ -10,6 +10,11 @@ softmax(matriz[L][C1 .. C2])
 
 ---
 
+## Referência
+- https://research.nvidia.com/sites/default/files/pubs/2016-03_Single-pass-Parallel-Prefix/nvr-2016-002.pdf
+
+---
+
 ## Requisitos
 
 - NVIDIA GPU com suporte a CUDA (Compute Capability 7.0+)
