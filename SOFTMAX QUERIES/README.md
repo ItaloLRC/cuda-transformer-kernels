@@ -130,9 +130,3 @@ Cada batch de até **25.000 queries** passa pelos seguintes kernels:
 Impressão via buffer de 16 MB com `fwrite` para evitar overhead de `printf` com grandes volumes de saída.
 
 ---
-
-## Limitações conhecidas
-
-- O busy-wait nos descritores (`while (!dsr[...].ok) {}`) pode causar stall em GPUs com poucos SMs se muitos blocos estiverem aguardando simultaneamente.
-- `BATCH = 25000` é fixo em tempo de execução; queries além desse valor são processadas em iterações subsequentes do loop principal.
-- Não há verificação de erros CUDA nas chamadas de alocação e cópia.
