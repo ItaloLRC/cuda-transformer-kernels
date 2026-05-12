@@ -13,6 +13,11 @@ onde `dk = N`.
 
 ---
 
+## Referência
+- https://github.com/dao-ailab/flash-attention
+
+---
+
 ## Requisitos
 
 - NVIDIA GPU com suporte a CUDA (Compute Capability 7.0+)
