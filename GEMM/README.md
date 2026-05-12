@@ -94,5 +94,4 @@ Utiliza `cudaMallocPitch` para alocar memória 2D alinhada, o que pode melhorar 
 ## Limitações conhecidas
 
 - Apenas matrizes **quadradas** (N×N) são suportadas.
-- O tamanho máximo de N é limitado pela memória da GPU disponível.
-- Não há verificação de erros CUDA (recomendado adicionar para uso em produção).
+- O tamanho máximo de N é limitado pela memória da GPU disponível. (GTX 1650 4GB VRAM)
