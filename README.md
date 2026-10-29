@@ -1,66 +1,82 @@
-# CUDA Kernels — Desafios Neospace AI
+# CUDA Transformer Kernels
 
-Implementações em CUDA C++ desenvolvidas para os desafios mensais de GPU promovidos pela [Neospace AI](https://www.instagram.com/neospace_ai), avaliados em GPU **NVIDIA GB200**. Todos os kernels rodam inteiramente na GPU (exceto I/O) e usam precisão **FP32**.
+Implementações em CUDA C++ de multiplicação de matrizes, atenção, softmax por faixas e seleção top-k. O projeto foi desenvolvido individualmente para os desafios de GPU da [Neospace AI](https://www.instagram.com/neospace_ai), como estudo das operações que aparecem em redes neurais e Transformers.
 
-Os desafios foram feitos de forma **individual**, e serviram como ponto de entrada para entender como primitivas de Deep Learning funcionam de baixo nível, antes de frameworks como PyTorch.
-Realizados em uma GPU com Compute Capability ≥ 7.0 (Volta ou superior)
+As operações principais usam FP32 na GPU. A CPU lê as entradas, organiza as transferências e imprime os resultados. Cada desafio é um programa independente, com seu próprio `main`, formato de entrada e documentação.
 
----
+## Operações implementadas
 
-## Desafios
+| Desafio | Operação | Estratégia principal | Código e instruções |
+|---|---|---|---|
+| B, 40 pontos no enunciado | Multiplicação de matrizes quadradas | Tiling em memória compartilhada, padding e acumulação com `fmaf` | [GEMM](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/GEMM), `matriz.cu` |
+| C, 50 pontos no enunciado | Atenção scaled dot-product | Tiling, vetorização com `float4`, reduções por warp e normalização incremental | [FLASHATTENTION](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/FLASHATTENTION), `attention.cu` |
+| D, 50 pontos, limite de 300 s | Softmax para consultas sobre intervalos de colunas | Prefix sums, agrupamento por linha e processamento em lotes | [SOFTMAX QUERIES](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/SOFTMAX%20QUERIES), `qsoftmax.cu` |
+| E, 50 pontos, limite de 300 s | Seleção dos maiores valores de cada linha | Ordenação bitônica parcial e redução do conjunto de candidatos | [TOPK](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/TOPK), `topk.cu` |
 
-### [Desafio B — Multiplicação de Matrizes](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/GEMM)
-`matriz.cu` · 40 pts
+Os pontos e limites de tempo identificam os desafios. A documentação de origem informa uma NVIDIA GB200 como GPU de avaliação; o repositório não inclui relatórios de pontuação ou medições de latência que permitam reproduzir essa avaliação.
 
-Multiplicação de matrizes quadradas N×N (até 4096×4096) com tiling em memória compartilhada e vetorização com `float4`. Ponto de partida para entender GEMM na GPU — operação base de qualquer rede neural.
+### Multiplicação de matrizes
 
----
+O programa calcula C = A × B para duas matrizes N × N. Blocos de threads carregam trechos de A e B na memória compartilhada e reutilizam esses valores para calcular os produtos. O kernel trabalha com tiles de 16 × 16 e agrupa oito trechos ao longo da dimensão de redução.
 
-### [Desafio C — Attention(Q, K, V)](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/FLASHATTENTION)
-`attention.cu` · 50 pts
+### Atenção
 
-Implementação do mecanismo de atenção scaled dot-product conforme o paper original do Transformer (Vaswani et al., 2017), com estratégia de tiling inspirada no FlashAttention (Dao et al., 2022): evita materializar a matriz M×M na memória compartilhada usando uma recorrência online de máximo e soma de exponenciais.
+O programa recebe Q, K e V com M linhas e N colunas e calcula:
 
 ```
 Attention(Q, K, V) = softmax(Q * K^T / sqrt(dk)) * V
 ```
 
----
+N corresponde a dk. A implementação acompanha o máximo e a soma de exponenciais durante o processamento dos tiles, uma estratégia inspirada no FlashAttention. Ela evita armazenar a matriz completa de atenção M × M. As larguras de memória são arredondadas para múltiplos de quatro para os acessos com `float4`.
 
-### [Desafio D — Queries de Softmax](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/SOFTMAX%20QUERIES)
-`qsoftmax.cu` · 50 pts · TL: 300s
+### Softmax por consultas
 
-Softmax por faixas de colunas para volume arbitrário de queries. A chave é pré-computar o prefix sum de `exp(a[i][j])` por linha uma única vez — respondendo cada query em O(1) em vez de varrer a linha inteira. O prefix sum distribuído entre blocos usa o algoritmo **Decoupled Look-back** (Merrill & Garland, 2016), com sincronização lock-free via descriptors e `__threadfence()`, além de ordenação das queries a partir da linha, maximizando o cache hit durante a execução do kernel. As queries são processadas em batches de 25k com 3 CUDA streams para sobrepor I/O e computação (consumer/producer).
+Cada consulta escolhe uma linha e uma faixa inclusiva de colunas. O pré-processamento calcula exponenciais e prefix sums por linha. A soma usada para normalizar uma faixa é obtida em O(1); produzir seus valores de saída continua custando O(k), onde k é o tamanho da faixa.
 
----
+As consultas são agrupadas por linha e processadas em lotes de até 25.000. O código mantém três posições de lote em circulação, com streams separados para cálculo e cópia dos resultados. O scan entre blocos usa descritores e sinalização de memória; o tema é discutido na referência de prefix scan abaixo.
 
-### [Desafio E — Top-K](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/TOPK)
-`topk.cu` · 50 pts · TL: 300s
+### Top-k por linha
 
-Seleção e ordenação decrescente dos K% maiores valores por linha (K entre 5% e 15%). Evita ordenar N inteiro: faz um Bitonic Sort parcial sobre os primeiros P=ceil(N*K/100) elementos e itera reduzindo os candidatos com `fmaxf` + compactação, extraindo o top-K sem varrer o array mais de `log(N/P)` vezes.
+K é um percentual entre 5 e 15. Para uma linha com N elementos, o programa imprime os `ceil(N*K/100)` maiores valores em ordem decrescente. A seleção usa ordenação bitônica de um conjunto parcial e sucessivas reduções dos candidatos. M e N devem ser potências de dois, conforme as restrições do desafio.
 
----
+## Compilar e executar
 
-## Algoritmos e conceitos cobertos
+É necessário ter uma GPU NVIDIA, driver e CUDA Toolkit compatíveis, `nvcc` e um compilador host suportado pelo Toolkit. As instruções dos desafios usam Compute Capability 7.0 ou superior; a arquitetura selecionada na compilação deve corresponder à GPU de execução.
 
-| Conceito | Onde aparece |
+Na raiz do repositório:
+
+```bash
+nvcc -O2 "GEMM/matriz.cu" -o matriz
+nvcc -O2 "FLASHATTENTION/attention.cu" -o attention
+nvcc -O2 "SOFTMAX QUERIES/qsoftmax.cu" -o qsoftmax
+nvcc -O2 "TOPK/topk.cu" -o topk
+```
+
+Os executáveis leem de stdin e escrevem em stdout. Em Bash, por exemplo:
+
+```bash
+./matriz < entrada.txt > saida.txt
+```
+
+| Programa | Entrada |
 |---|---|
-| Tiled GEMM com shmem | matriz, attention |
-| FlashAttention (recorrência online de softmax) | attention |
-| Blelloch Scan (up-sweep / down-sweep) | qsoftmax |
-| Decoupled Look-back (prefix sum entre blocos) | qsoftmax |
-| Bitonic Sort parcial | topk |
-| Vetorização com `float2` / `float4` | attention, qsoftmax |
-| Warp shuffle (`__shfl_down_sync`) | attention, qsoftmax |
-| CUDA Streams + pinned memory | qsoftmax |
-| Bank conflict avoidance (PADDING na shmem) | todos |
+| `matriz` | N, seguido de duas matrizes N × N |
+| `attention` | M e N, seguidos das matrizes Q, K e V, cada uma M × N |
+| `qsoftmax` | M e N, a matriz M × N e consultas `L C1 C2` até o fim da entrada |
+| `topk` | K, M e N, seguidos da matriz M × N |
 
----
+As subpastas contêm exemplos completos e as restrições de tamanho, precisão e formato de saída. Atenção, consultas e top-k trabalham com dimensões de até 4096 nas condições descritas nesses documentos; top-k exige dimensões que sejam potências de dois.
+
+## Desempenho e validação
+
+O código explora reuso de memória, acessos vetorizados e processamento em lotes. Esses mecanismos explicam as escolhas de implementação, mas não fornecem por si só uma medida de desempenho. Não há uma tabela de comparação com cuBLAS, PyTorch ou a implementação oficial do FlashAttention.
+
+Os exemplos das subpastas permitem conferir entrada e saída. Há funções auxiliares de referência e verificação em alguns fontes, porém os programas não compõem uma suíte automatizada de testes. O tratamento de erros CUDA e a liberação de recursos também variam entre os programas. Uma avaliação reproduzível precisa registrar a GPU, o Toolkit, as dimensões, o erro numérico e o tempo, distinguindo a execução do kernel do custo de entrada e saída.
 
 ## Referências
 
-- Vaswani et al., [Attention is All You Need](https://arxiv.org/pdf/1706.03762) (2017)
-- Dao et al., [FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness](https://arxiv.org/abs/2205.14135) (2022)
-- Merrill & Garland, [Single-pass Parallel Prefix Scan with Decoupled Look-back](https://research.nvidia.com/sites/default/files/pubs/2016-03_Single-pass-Parallel-Prefix/nvr-2016-002.pdf) (2016)
-- NVIDIA, [CUDA C++ Programming Guide](https://docs.nvidia.com/cuda/pdf/CUDA_C_Programming_Guide.pdf)
-- Enunciados originais: [Drive Neospace AI](https://drive.google.com/drive/folders/1PFsfI1s2XMLAJfMpT6yG5XrmC7A5W4gR)
+- Vaswani et al., [Attention is All You Need](https://arxiv.org/pdf/1706.03762), 2017.
+- Dao et al., [FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness](https://arxiv.org/abs/2205.14135), 2022.
+- Merrill e Garland, [Single-pass Parallel Prefix Scan with Decoupled Look-back](https://research.nvidia.com/sites/default/files/pubs/2016-03_Single-pass-Parallel-Prefix/nvr-2016-002.pdf), 2016.
+- NVIDIA, [CUDA C++ Programming Guide](https://docs.nvidia.com/cuda/pdf/CUDA_C_Programming_Guide.pdf).
+- [Enunciados dos desafios Neospace AI](https://drive.google.com/drive/folders/1PFsfI1s2XMLAJfMpT6yG5XrmC7A5W4gR).
