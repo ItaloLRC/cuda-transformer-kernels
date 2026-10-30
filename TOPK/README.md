@@ -1,4 +1,4 @@
-﻿# Top-K por Linha com CUDA
+# Top-K por Linha com CUDA
 
 Implementação GPU em CUDA para seleção e ordenação decrescente dos **Top-K maiores valores** em cada linha de uma matriz, dentro do limite de **300 segundos**. Toda a computação roda em GPU; apenas entrada e saída de dados ocorrem na CPU.
 
@@ -118,10 +118,3 @@ Executa o Top-K in-place diretamente na memória global, em duas fases:
 Impressão via buffer de 16 MB com `fwrite` para evitar overhead de `printf` por elemento em matrizes grandes.
 
 ---
-
-## Limitações conhecidas
-
-- M e N **precisam ser potências de 2** (restrição do enunciado e do algoritmo).
-- O kernel opera in-place: a matriz original é modificada na GPU.
-- Não há verificação de erros CUDA nas chamadas de alocação e cópia (a macro `CUDA_CHECK` está definida mas não aplicada nas chamadas do `main`).
-- `blockDim.x = 256` é fixo; ajustes podem ser necessários para GPUs com menor ocupância.

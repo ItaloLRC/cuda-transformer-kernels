@@ -8,12 +8,10 @@ As operações principais usam FP32 na GPU. A CPU lê as entradas, organiza as t
 
 | Desafio | Operação | Estratégia principal | Código e instruções |
 |---|---|---|---|
-| B, 40 pontos no enunciado | Multiplicação de matrizes quadradas | Tiling em memória compartilhada, padding e acumulação com `fmaf` | [GEMM](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/GEMM), `matriz.cu` |
-| C, 50 pontos no enunciado | Atenção scaled dot-product | Tiling, vetorização com `float4`, reduções por warp e normalização incremental | [FLASHATTENTION](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/FLASHATTENTION), `attention.cu` |
-| D, 50 pontos, limite de 300 s | Softmax para consultas sobre intervalos de colunas | Prefix sums, agrupamento por linha e processamento em lotes | [SOFTMAX QUERIES](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/SOFTMAX%20QUERIES), `qsoftmax.cu` |
-| E, 50 pontos, limite de 300 s | Seleção dos maiores valores de cada linha | Ordenação bitônica parcial e redução do conjunto de candidatos | [TOPK](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/TOPK), `topk.cu` |
-
-Os pontos e limites de tempo identificam os desafios. A documentação de origem informa uma NVIDIA GB200 como GPU de avaliação; o repositório não inclui relatórios de pontuação ou medições de latência que permitam reproduzir essa avaliação.
+| B | Multiplicação de matrizes quadradas | Tiling em memória compartilhada, padding e acumulação com `fmaf` | [GEMM](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/GEMM), `matriz.cu` |
+| C | Atenção scaled dot-product | Tiling, vetorização com `float4`, reduções por warp e normalização incremental | [FLASHATTENTION](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/FLASHATTENTION), `attention.cu` |
+| D | Softmax para consultas sobre intervalos de colunas | Prefix sums, agrupamento por linha e processamento em lotes | [SOFTMAX QUERIES](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/SOFTMAX%20QUERIES), `qsoftmax.cu` |
+| E | Seleção dos maiores valores de cada linha | Ordenação bitônica parcial e redução do conjunto de candidatos | [TOPK](https://github.com/ItaloLRC/cuda-transformer-kernels/tree/main/TOPK), `topk.cu` |
 
 ### Multiplicação de matrizes
 
@@ -67,11 +65,16 @@ Os executáveis leem de stdin e escrevem em stdout. Em Bash, por exemplo:
 
 As subpastas contêm exemplos completos e as restrições de tamanho, precisão e formato de saída. Atenção, consultas e top-k trabalham com dimensões de até 4096 nas condições descritas nesses documentos; top-k exige dimensões que sejam potências de dois.
 
-## Desempenho e validação
+## Técnicas de programação em GPU
 
-O código explora reuso de memória, acessos vetorizados e processamento em lotes. Esses mecanismos explicam as escolhas de implementação, mas não fornecem por si só uma medida de desempenho. Não há uma tabela de comparação com cuBLAS, PyTorch ou a implementação oficial do FlashAttention.
+- Tiling e reuso de dados em memória compartilhada.
+- Acessos vetorizados com `float2` e `float4`.
+- Reduções por warp e normalização incremental na atenção.
+- Prefix sums e agrupamento de consultas por linha.
+- Processamento em lotes e sobreposição de operações com CUDA streams.
+- Seleção top-k com ordenação bitônica parcial.
 
-Os exemplos das subpastas permitem conferir entrada e saída. Há funções auxiliares de referência e verificação em alguns fontes, porém os programas não compõem uma suíte automatizada de testes. O tratamento de erros CUDA e a liberação de recursos também variam entre os programas. Uma avaliação reproduzível precisa registrar a GPU, o Toolkit, as dimensões, o erro numérico e o tempo, distinguindo a execução do kernel do custo de entrada e saída.
+Cada subpasta documenta o formato de entrada, a saída esperada e os parâmetros do respectivo desafio.
 
 ## Referências
 

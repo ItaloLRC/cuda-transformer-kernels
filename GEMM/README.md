@@ -1,4 +1,4 @@
-﻿# Multiplicação de Matrizes com CUDA
+# Multiplicação de Matrizes com CUDA
 
 Implementação de multiplicação de matrizes quadradas utilizando GPU via CUDA, com otimizações de memória compartilhada (*tiling* com múltiplos blocos K) e padding para evitar conflitos de banco de memória.
 
@@ -91,8 +91,3 @@ b[N-1][0] ... b[N-1][N-1]
 Utiliza `cudaMallocPitch` para alocar memória 2D alinhada, o que pode melhorar a coalescência de acessos à memória global em alguns casos.
 
 ---
-
-## Limitações conhecidas
-
-- Apenas matrizes **quadradas** (N×N) são suportadas.
-- O tamanho máximo de N é limitado pela memória da GPU disponível. (GTX 1650 4GB VRAM)
